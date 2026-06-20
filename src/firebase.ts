@@ -36,7 +36,7 @@ const db = app ? getDatabase(app) : null;
 
 function requireDatabase() {
   if (!db) {
-    throw new Error('Firebaseが未設定です。.envにVITE_FIREBASE_*を設定してください。');
+    throw new Error('Firebaseが未設定です。.envに VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_DATABASE_URL, VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_FIREBASE_APP_ID を設定してください。');
   }
 
   return db;
