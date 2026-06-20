@@ -84,7 +84,7 @@ function parseMeetingCsv(csvText: string): NewMeetingRecord[] {
     .filter(Boolean);
 
   if (rows.length < 2) {
-    return [];
+    throw new Error('CSVはヘッダー行と1件以上のデータ行が必要です。');
   }
 
   const header = parseCsvLine(rows[0]).map((cell) => cell.toLowerCase());
@@ -94,7 +94,7 @@ function parseMeetingCsv(csvText: string): NewMeetingRecord[] {
     return index >= 0 ? cells[index] ?? '' : '';
   };
 
-  return rows.slice(1).map((line) => {
+  const records = rows.slice(1).map((line) => {
     const cells = parseCsvLine(line);
 
     return {
@@ -105,6 +105,14 @@ function parseMeetingCsv(csvText: string): NewMeetingRecord[] {
       memo: readCell(cells, ['memo', 'notes', '内容', 'メモ']),
     };
   });
+
+  const validRecords = records.filter((record) => record.company || record.vessel || record.memo);
+
+  if (validRecords.length === 0) {
+    throw new Error('CSVに有効なデータ行がありません。');
+  }
+
+  return validRecords;
 }
 
 function App() {
@@ -253,11 +261,7 @@ function App() {
     setMessage(null);
 
     try {
-      const records = parseMeetingCsv(csvContent).filter((record) => record.company || record.vessel || record.memo);
-
-      if (records.length === 0) {
-        throw new Error('CSVに有効なデータ行がありません。');
-      }
+      const records = parseMeetingCsv(csvContent);
 
       const importedCount = await importMeetingRecords(records);
       const refreshed = await fetchMeetingRecords();
