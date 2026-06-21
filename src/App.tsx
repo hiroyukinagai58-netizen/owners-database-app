@@ -35,6 +35,7 @@ function toPath(route: Route): string {
 }
 
 const emptySeed: SeedData = { companies: [], vessels: [], meetings: [] };
+let fallbackMeetingCounter = 0;
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => resolveRoute(window.location.pathname));
@@ -166,7 +167,7 @@ export default function App() {
     const id =
       typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
-        : `m-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        : `m-${Date.now()}-${(fallbackMeetingCounter += 1)}`;
     const meeting: MeetingRecord = { id, ...input };
     await upsertMeeting(meeting);
     setFirebaseMeetings((prev) => ({ ...prev, [id]: meeting }));
