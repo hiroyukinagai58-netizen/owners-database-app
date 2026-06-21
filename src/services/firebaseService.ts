@@ -1,8 +1,9 @@
 import type { Company, MeetingRecord, Vessel } from '../types';
 
-const FIREBASE_DB_URL =
+const FIREBASE_DB_URL = (
   import.meta.env.VITE_FIREBASE_DB_URL ??
-  'https://shipmate-86d9a-default-rtdb.asia-southeast1.firebasedatabase.app';
+  'https://shipmate-86d9a-default-rtdb.asia-southeast1.firebasedatabase.app'
+).replace(/\/$/, '');
 
 type Keyed<T> = Record<string, T>;
 
@@ -36,7 +37,10 @@ async function writeNode(path: string, value: unknown): Promise<void> {
 }
 
 async function deleteNode(path: string): Promise<void> {
-  await fetch(`${FIREBASE_DB_URL}/${path}.json`, { method: 'DELETE' });
+  const response = await fetch(`${FIREBASE_DB_URL}/${path}.json`, { method: 'DELETE' });
+  if (!response.ok) {
+    throw new Error('Firebaseからの削除に失敗しました。');
+  }
 }
 
 export async function loadFirebaseSnapshot(): Promise<FirebaseSnapshot> {

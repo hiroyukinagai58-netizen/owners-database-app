@@ -119,6 +119,13 @@ export default function App() {
     }, 3500);
   };
 
+  const runAction = (task: () => Promise<void>) => {
+    task().catch((e) => {
+      const message = e instanceof Error ? e.message : '処理に失敗しました。';
+      setError(message);
+    });
+  };
+
   const handleAddCompany = async (input: CreateCompanyInput) => {
     const company: Company = { ...input, company_id: nextCompanyId };
     await upsertCompany(company);
@@ -156,7 +163,10 @@ export default function App() {
   };
 
   const handleAddMeeting = async (input: Omit<MeetingRecord, 'id'>) => {
-    const id = `m-${Date.now()}`;
+    const id =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `m-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const meeting: MeetingRecord = { id, ...input };
     await upsertMeeting(meeting);
     setFirebaseMeetings((prev) => ({ ...prev, [id]: meeting }));
@@ -211,13 +221,27 @@ export default function App() {
         {!loading && !error && (
           <>
             {route === '/' && (
-              <CompaniesPage companies={companies} onAdd={(company) => void handleAddCompany(company)} onDelete={(id) => void handleDeleteCompany(id)} />
+              <CompaniesPage
+                companies={companies}
+                onAdd={(company) => runAction(() => handleAddCompany(company))}
+                onDelete={(id) => runAction(() => handleDeleteCompany(id))}
+              />
             )}
             {route === '/ships' && (
-              <ShipsPage vessels={vessels} companies={companies} onAdd={(vessel) => void handleAddVessel(vessel)} onDelete={(id) => void handleDeleteVessel(id)} />
+              <ShipsPage
+                vessels={vessels}
+                companies={companies}
+                onAdd={(vessel) => runAction(() => handleAddVessel(vessel))}
+                onDelete={(id) => runAction(() => handleDeleteVessel(id))}
+              />
             )}
             {route === '/meetings' && (
-              <MeetingsPage meetings={meetings} companies={companies} onAdd={(meeting) => void handleAddMeeting(meeting)} onDelete={(id) => void handleDeleteMeeting(id)} />
+              <MeetingsPage
+                meetings={meetings}
+                companies={companies}
+                onAdd={(meeting) => runAction(() => handleAddMeeting(meeting))}
+                onDelete={(id) => runAction(() => handleDeleteMeeting(id))}
+              />
             )}
             {route === '/admin' && <AdminPage onImportCompanies={handleImportCompanies} onImportVessels={handleImportVessels} />}
             {statusMessage && <p className="status">{statusMessage}</p>}

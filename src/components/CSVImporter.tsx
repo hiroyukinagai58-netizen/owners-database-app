@@ -18,9 +18,14 @@ export default function CSVImporter<T>({ title, onImport }: CSVImporterProps<T>)
           const file = e.target.files?.[0];
           if (!file) return;
 
-          const text = await file.text();
-          const imported = await onImport(text);
-          setMessage(`${imported.length}件を取り込みました。`);
+          try {
+            const text = await file.text();
+            const imported = await onImport(text);
+            setMessage(`${imported.length}件を取り込みました。`);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'CSV取り込みに失敗しました。';
+            setMessage(message);
+          }
           e.currentTarget.value = '';
         }}
       />
