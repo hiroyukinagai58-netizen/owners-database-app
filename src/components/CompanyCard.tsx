@@ -1,3 +1,4 @@
+import { JAPANESE_TEXT_SPLIT_PATTERN } from '../constants';
 import type { Company } from '../types';
 
 interface CompanyCardProps {
@@ -7,7 +8,7 @@ interface CompanyCardProps {
 
 export default function CompanyCard({ company, onDelete }: CompanyCardProps) {
   const tags = (company.type_of_vessel ?? '')
-    .split(/[、,\n]/)
+    .split(JAPANESE_TEXT_SPLIT_PATTERN)
     .map((tag) => tag.trim())
     .filter(Boolean)
     .slice(0, 4);

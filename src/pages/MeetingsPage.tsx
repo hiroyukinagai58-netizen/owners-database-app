@@ -28,7 +28,7 @@ export default function MeetingsPage({ meetings, companies, onAdd, onDelete }: M
       const m = date.getMonth();
 
       if (tab === 'thisMonth') return y === year && m === month;
-      return y > year || (y === year && m > month);
+      return y > year || (y === year && m >= month);
     });
   }, [meetings, tab]);
 

@@ -1,7 +1,7 @@
+import { JAPANESE_TEXT_SPLIT_PATTERN } from '../constants';
 import type { MeetingRecord, SeedData } from '../types';
 
 const dataPath = `${import.meta.env.BASE_URL}data/owners_database.json`;
-const attendeeSeparatorPattern = /[、,\n]/; // Japanese delimiter "、", comma, and newline.
 
 const toMeetingRecord = (value: unknown): MeetingRecord | null => {
   if (!value || typeof value !== 'object') return null;
@@ -9,7 +9,7 @@ const toMeetingRecord = (value: unknown): MeetingRecord | null => {
   const attendees = Array.isArray(item.attendees)
     ? item.attendees.map(String)
     : typeof item.attendees === 'string'
-      ? item.attendees.split(attendeeSeparatorPattern).map((v) => v.trim()).filter(Boolean)
+      ? item.attendees.split(JAPANESE_TEXT_SPLIT_PATTERN).map((v) => v.trim()).filter(Boolean)
       : [];
 
   if (!item.id || !item.content || !item.date) return null;

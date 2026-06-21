@@ -164,10 +164,13 @@ export default function App() {
   };
 
   const handleAddMeeting = async (input: Omit<MeetingRecord, 'id'>) => {
-    const id =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `m-${Date.now()}-${(fallbackMeetingCounterRef.current += 1)}`;
+    let id: string;
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      id = crypto.randomUUID();
+    } else {
+      fallbackMeetingCounterRef.current += 1;
+      id = `m-${Date.now()}-${fallbackMeetingCounterRef.current}`;
+    }
     const meeting: MeetingRecord = { id, ...input };
     await upsertMeeting(meeting);
     setFirebaseMeetings((prev) => ({ ...prev, [id]: meeting }));

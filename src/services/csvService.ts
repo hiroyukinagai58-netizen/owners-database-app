@@ -41,7 +41,7 @@ function toRows(text: string): Record<string, string>[] {
   });
 }
 
-function toNumberOrUndefined(value: string | undefined): number | undefined {
+function toOptionalNumber(value: string | undefined): number | undefined {
   if (value === undefined || value.trim() === '') return undefined;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? undefined : parsed;
@@ -50,7 +50,7 @@ function toNumberOrUndefined(value: string | undefined): number | undefined {
 export function parseCompaniesCsv(text: string, startId: number): Company[] {
   return toRows(text)
     .map((row, idx) => ({
-      company_id: toNumberOrUndefined(row.company_id) ?? startId + idx,
+      company_id: toOptionalNumber(row.company_id) ?? startId + idx,
       area: row.area || '未設定',
       name: row.name || '',
       ceo: row.ceo || '',
@@ -70,9 +70,9 @@ export function parseVesselsCsv(
   return toRows(text)
     .map((row, idx) => {
       const byName = row.company_name ? resolveCompanyId(row.company_name) : undefined;
-      const companyId = toNumberOrUndefined(row.company_id) ?? byName ?? 0;
+      const companyId = toOptionalNumber(row.company_id) ?? byName ?? 0;
       return {
-        vessel_id: toNumberOrUndefined(row.vessel_id) ?? startId + idx,
+        vessel_id: toOptionalNumber(row.vessel_id) ?? startId + idx,
         company_id: companyId,
         section: row.section || row.status || '保有',
         type: row.type || '',
