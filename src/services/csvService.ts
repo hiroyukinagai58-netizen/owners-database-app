@@ -79,7 +79,11 @@ export function parseVesselsCsv(
         imo: row.imo || '',
         name: row.name || '',
         flag: row.flag || '',
-        dwt: row.dwt ? Number(row.dwt) : null,
+        dwt: (() => {
+          if (!row.dwt) return null;
+          const parsed = Number(row.dwt);
+          return Number.isNaN(parsed) ? null : parsed;
+        })(),
       } as Vessel;
     })
     .filter((vessel) => vessel.company_id > 0 && vessel.name);

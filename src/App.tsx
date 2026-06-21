@@ -169,7 +169,11 @@ export default function App() {
       id = crypto.randomUUID();
     } else {
       fallbackMeetingCounterRef.current += 1;
-      id = `m-${Date.now()}-${fallbackMeetingCounterRef.current}`;
+      const randomPart =
+        typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function'
+          ? Array.from(crypto.getRandomValues(new Uint32Array(1)))[0].toString(36)
+          : Math.random().toString(36).slice(2, 10);
+      id = `m-${Date.now()}-${fallbackMeetingCounterRef.current}-${randomPart}`;
     }
     const meeting: MeetingRecord = { id, ...input };
     await upsertMeeting(meeting);
