@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Header from './components/Header';
 import CompaniesPage from './pages/CompaniesPage';
 import ShipsPage from './pages/ShipsPage';
@@ -35,9 +35,9 @@ function toPath(route: Route): string {
 }
 
 const emptySeed: SeedData = { companies: [], vessels: [], meetings: [] };
-let fallbackMeetingCounter = 0;
 
 export default function App() {
+  const fallbackMeetingCounterRef = useRef(0);
   const [route, setRoute] = useState<Route>(() => resolveRoute(window.location.pathname));
   const [seed, setSeed] = useState<SeedData>(emptySeed);
   const [addedCompanies, setAddedCompanies] = useState<Record<string, Company>>({});
@@ -167,7 +167,7 @@ export default function App() {
     const id =
       typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
-        : `m-${Date.now()}-${(fallbackMeetingCounter += 1)}`;
+        : `m-${Date.now()}-${(fallbackMeetingCounterRef.current += 1)}`;
     const meeting: MeetingRecord = { id, ...input };
     await upsertMeeting(meeting);
     setFirebaseMeetings((prev) => ({ ...prev, [id]: meeting }));

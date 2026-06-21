@@ -1,9 +1,11 @@
 import type { Company, MeetingRecord, Vessel } from '../types';
 
-const FIREBASE_DB_URL = (
-  import.meta.env.VITE_FIREBASE_DB_URL ??
-  'https://shipmate-86d9a-default-rtdb.asia-southeast1.firebasedatabase.app'
-).replace(/\/$/, '');
+const firebaseUrl = import.meta.env.VITE_FIREBASE_DB_URL;
+if (!firebaseUrl) {
+  throw new Error('VITE_FIREBASE_DB_URL が未設定です。');
+}
+
+const FIREBASE_DB_URL = firebaseUrl.replace(/\/$/, '');
 
 type Keyed<T> = Record<string, T>;
 
