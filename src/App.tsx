@@ -1,144 +1,229 @@
-import { useState, useEffect } from 'react';
-import './App.css';
-import SearchBar from './components/SearchBar';
-import CompanyList from './components/CompanyList';
-import CompanyDetail from './components/CompanyDetail';
+import { useEffect, useMemo, useState } from 'react';
+import Header from './components/Header';
+import CompaniesPage from './pages/CompaniesPage';
+import ShipsPage from './pages/ShipsPage';
+import MeetingsPage from './pages/MeetingsPage';
+import AdminPage from './pages/AdminPage';
+import { parseCompaniesCsv, parseVesselsCsv } from './services/csvService';
+import { loadSeedData } from './services/dataService';
+import {
+  deleteCompany,
+  deleteMeeting,
+  deleteVessel,
+  loadFirebaseSnapshot,
+  upsertCompany,
+  upsertMeeting,
+  upsertVessel,
+} from './services/firebaseService';
+import type { Company, CreateCompanyInput, CreateVesselInput, MeetingRecord, SeedData, Vessel } from './types';
 
-interface Company {
-  company_id: number;
-  area: string;
-  name: string;
-  ceo: string;
-  pic?: string;
-  address: string;
-  tel: string;
-  mail?: string;
-  registered_owner?: string;
-  related_company?: string;
-  banks?: string;
-  broker?: string;
-  type_of_vessel?: string;
-  shipyard?: string;
-  tc_fleet?: string;
-  bbc_fleet?: string;
-  tc_charterer?: string;
-  bbc_charterer?: string;
-  newbuilding?: string;
-  [key: string]: any;
+type Route = '/' | '/ships' | '/meetings' | '/admin';
+
+function resolveRoute(pathname: string): Route {
+  if (pathname.endsWith('/ships')) return '/ships';
+  if (pathname.endsWith('/meetings')) return '/meetings';
+  if (pathname.endsWith('/admin')) return '/admin';
+  return '/';
 }
 
-function App() {
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedArea, setSelectedArea] = useState('all');
+function toPath(route: Route): string {
+  const base = import.meta.env.BASE_URL.endsWith('/')
+    ? import.meta.env.BASE_URL.slice(0, -1)
+    : import.meta.env.BASE_URL;
+
+  return route === '/' ? `${base}/` : `${base}${route}`;
+}
+
+const emptySeed: SeedData = { companies: [], vessels: [], meetings: [] };
+
+export default function App() {
+  const [route, setRoute] = useState<Route>(() => resolveRoute(window.location.pathname));
+  const [seed, setSeed] = useState<SeedData>(emptySeed);
+  const [addedCompanies, setAddedCompanies] = useState<Record<string, Company>>({});
+  const [addedVessels, setAddedVessels] = useState<Record<string, Vessel>>({});
+  const [deletedCompanyIds, setDeletedCompanyIds] = useState<Record<string, boolean>>({});
+  const [deletedVesselIds, setDeletedVesselIds] = useState<Record<string, boolean>>({});
+  const [firebaseMeetings, setFirebaseMeetings] = useState<Record<string, MeetingRecord>>({});
   const [loading, setLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Load JSON data
   useEffect(() => {
-    const loadData = async () => {
+    const onPop = () => setRoute(resolveRoute(window.location.pathname));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(() => {
+    const load = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/owners-database-app/data/owners_database.json');
-        if (!response.ok) {
-          throw new Error('Failed to load database');
-        }
-        const data = await response.json();
-        setCompanies(data.companies || []);
-        setFilteredCompanies(data.companies || []);
+        const [seedData, firebaseData] = await Promise.all([loadSeedData(), loadFirebaseSnapshot()]);
+
+        setSeed(seedData);
+        setAddedCompanies(firebaseData.addedCompanies);
+        setAddedVessels(firebaseData.addedVessels);
+        setDeletedCompanyIds(firebaseData.deletedCompanyIds);
+        setDeletedVesselIds(firebaseData.deletedVesselIds);
+        setFirebaseMeetings(firebaseData.meetings);
         setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-        console.error('Error loading data:', err);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'データ取得に失敗しました。');
       } finally {
         setLoading(false);
       }
     };
 
-    loadData();
+    void load();
   }, []);
 
-  // Filter companies based on search and area
-  useEffect(() => {
-    let filtered = companies;
+  const companies = useMemo(() => {
+    const local = seed.companies.filter((company) => !deletedCompanyIds[String(company.company_id)]);
+    const extra = Object.values(addedCompanies).filter((company) => !deletedCompanyIds[String(company.company_id)]);
+    return [...local, ...extra];
+  }, [seed.companies, addedCompanies, deletedCompanyIds]);
 
-    // Filter by area
-    if (selectedArea !== 'all') {
-      filtered = filtered.filter(c => c.area === selectedArea);
+  const vessels = useMemo(() => {
+    const local = seed.vessels.filter((vessel) => !deletedVesselIds[String(vessel.vessel_id)]);
+    const extra = Object.values(addedVessels).filter((vessel) => !deletedVesselIds[String(vessel.vessel_id)]);
+    return [...local, ...extra];
+  }, [seed.vessels, addedVessels, deletedVesselIds]);
+
+  const meetings = useMemo(() => {
+    const fromSeed = seed.meetings;
+    const fromFirebase = Object.values(firebaseMeetings);
+    return [...fromSeed, ...fromFirebase].sort((a, b) => b.date.localeCompare(a.date));
+  }, [seed.meetings, firebaseMeetings]);
+
+  const moveTo = (nextRoute: Route) => {
+    const nextPath = toPath(nextRoute);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath);
     }
+    setRoute(nextRoute);
+  };
 
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(c =>
-        c.name.toLowerCase().includes(term) ||
-        c.ceo.toLowerCase().includes(term) ||
-        c.area.toLowerCase().includes(term) ||
-        c.address.toLowerCase().includes(term)
-      );
-    }
+  const nextCompanyId = useMemo(
+    () => Math.max(0, ...seed.companies.map((c) => c.company_id), ...Object.values(addedCompanies).map((c) => c.company_id)) + 1,
+    [seed.companies, addedCompanies],
+  );
+  const nextVesselId = useMemo(
+    () => Math.max(0, ...seed.vessels.map((v) => v.vessel_id), ...Object.values(addedVessels).map((v) => v.vessel_id)) + 1,
+    [seed.vessels, addedVessels],
+  );
 
-    setFilteredCompanies(filtered);
-  }, [searchTerm, selectedArea, companies]);
+  const showStatus = (message: string) => {
+    setStatusMessage(message);
+    window.setTimeout(() => {
+      setStatusMessage((prev) => (prev === message ? '' : prev));
+    }, 3500);
+  };
 
-  // Get unique areas
-  const areas = Array.from(new Set(companies.map(c => c.area))).sort();
+  const handleAddCompany = async (input: CreateCompanyInput) => {
+    const company: Company = { ...input, company_id: nextCompanyId };
+    await upsertCompany(company);
+    setAddedCompanies((prev) => ({ ...prev, [String(company.company_id)]: company }));
+    showStatus('企業情報をFirebaseに保存しました。');
+  };
+
+  const handleDeleteCompany = async (companyId: number) => {
+    await deleteCompany(companyId);
+    setDeletedCompanyIds((prev) => ({ ...prev, [String(companyId)]: true }));
+    setAddedCompanies((prev) => {
+      const next = { ...prev };
+      delete next[String(companyId)];
+      return next;
+    });
+    showStatus('企業情報を削除しました。');
+  };
+
+  const handleAddVessel = async (input: CreateVesselInput) => {
+    const vessel: Vessel = { ...input, vessel_id: nextVesselId };
+    await upsertVessel(vessel);
+    setAddedVessels((prev) => ({ ...prev, [String(vessel.vessel_id)]: vessel }));
+    showStatus('船舶情報をFirebaseに保存しました。');
+  };
+
+  const handleDeleteVessel = async (vesselId: number) => {
+    await deleteVessel(vesselId);
+    setDeletedVesselIds((prev) => ({ ...prev, [String(vesselId)]: true }));
+    setAddedVessels((prev) => {
+      const next = { ...prev };
+      delete next[String(vesselId)];
+      return next;
+    });
+    showStatus('船舶情報を削除しました。');
+  };
+
+  const handleAddMeeting = async (input: Omit<MeetingRecord, 'id'>) => {
+    const id = `m-${Date.now()}`;
+    const meeting: MeetingRecord = { id, ...input };
+    await upsertMeeting(meeting);
+    setFirebaseMeetings((prev) => ({ ...prev, [id]: meeting }));
+    showStatus('面談記録をFirebaseに保存しました。');
+  };
+
+  const handleDeleteMeeting = async (meetingId: string) => {
+    await deleteMeeting(meetingId);
+    setFirebaseMeetings((prev) => {
+      const next = { ...prev };
+      delete next[meetingId];
+      return next;
+    });
+    showStatus('面談記録を削除しました。');
+  };
+
+  const handleImportCompanies = async (csvText: string) => {
+    const imported = parseCompaniesCsv(csvText, nextCompanyId);
+    await Promise.all(imported.map((company) => upsertCompany(company)));
+    setAddedCompanies((prev) => {
+      const next = { ...prev };
+      imported.forEach((company) => {
+        next[String(company.company_id)] = company;
+      });
+      return next;
+    });
+    showStatus('会社CSVを取り込みました。');
+    return imported;
+  };
+
+  const handleImportVessels = async (csvText: string) => {
+    const companyMap = new Map(companies.map((company) => [company.name, company.company_id]));
+    const imported = parseVesselsCsv(csvText, nextVesselId, (name) => companyMap.get(name));
+    await Promise.all(imported.map((vessel) => upsertVessel(vessel)));
+    setAddedVessels((prev) => {
+      const next = { ...prev };
+      imported.forEach((vessel) => {
+        next[String(vessel.vessel_id)] = vessel;
+      });
+      return next;
+    });
+    showStatus('船舶CSVを取り込みました。');
+    return imported;
+  };
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>🚢 海運企業・船舶管理データベース</h1>
-        <p>企業情報、船舶フリート、船舶建造情報の検索・管理</p>
-      </header>
-
-      <main className="app-main">
-        <SearchBar
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          selectedArea={selectedArea}
-          onAreaChange={setSelectedArea}
-          areas={areas}
-          totalCompanies={companies.length}
-          filteredCount={filteredCompanies.length}
-        />
-
-        {loading && (
-          <div className="loading">
-            <p>データを読み込み中...</p>
-          </div>
-        )}
-
-        {error && (
-          <div className="error">
-            <p>エラー: {error}</p>
-          </div>
-        )}
-
+    <div className="app-shell">
+      <Header currentPath={route} onNavigate={(path) => moveTo(path as Route)} />
+      <main className="main-shell">
+        {loading && <div className="panel">データを読み込み中です...</div>}
+        {error && <div className="panel">エラー: {error}</div>}
         {!loading && !error && (
-          <div className="app-content">
-            <CompanyList
-              companies={filteredCompanies}
-              selectedCompany={selectedCompany}
-              onSelectCompany={setSelectedCompany}
-            />
-
-            {selectedCompany && (
-              <CompanyDetail
-                company={selectedCompany}
-                onClose={() => setSelectedCompany(null)}
-              />
+          <>
+            {route === '/' && (
+              <CompaniesPage companies={companies} onAdd={(company) => void handleAddCompany(company)} onDelete={(id) => void handleDeleteCompany(id)} />
             )}
-          </div>
+            {route === '/ships' && (
+              <ShipsPage vessels={vessels} companies={companies} onAdd={(vessel) => void handleAddVessel(vessel)} onDelete={(id) => void handleDeleteVessel(id)} />
+            )}
+            {route === '/meetings' && (
+              <MeetingsPage meetings={meetings} companies={companies} onAdd={(meeting) => void handleAddMeeting(meeting)} onDelete={(id) => void handleDeleteMeeting(id)} />
+            )}
+            {route === '/admin' && <AdminPage onImportCompanies={handleImportCompanies} onImportVessels={handleImportVessels} />}
+            {statusMessage && <p className="status">{statusMessage}</p>}
+          </>
         )}
       </main>
-
-      <footer className="app-footer">
-        <p>© 2024 海運企業・船舶管理データベース</p>
-      </footer>
     </div>
   );
 }
-
-export default App;
